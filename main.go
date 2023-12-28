@@ -1,5 +1,81 @@
 package main
 
-func main() {
+import (
+	"context"
+	"fmt"
+	"github.com/gin-gonic/gin"
+	"github.com/spf13/viper"
+	"go.uber.org/zap"
+	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+	"web_app/dao/mysql"
+	"web_app/dao/redis"
+	"web_app/logger"
+	"web_app/routers"
+	"web_app/settings"
+)
 
+func main() {
+	// 1. init settings
+	if err := settings.InitSettings(); err != nil {
+		fmt.Printf("init settings failed, err: %v\n", err)
+		return
+	}
+
+	// 2. init log
+	if err := logger.InitLogger(); err != nil {
+		zap.L().Fatal("init logger failed, err: ", zap.Error(err))
+		return
+	}
+	defer zap.L().Sync()
+
+	// 3. init mysql
+	if err := mysql.InitMySQL(); err != nil {
+		zap.L().Fatal("init mysql failed, err: ", zap.Error(err))
+		return
+	}
+	defer mysql.Close()
+
+	// 4. init redis
+	if err := redis.InitRedis(); err != nil {
+		zap.L().Fatal("init redis failed, err: ", zap.Error(err))
+		return
+	}
+	defer redis.Close()
+
+	// 5. register router
+	r := routers.SetupRouter()
+	r.GET("/", func(c *gin.Context) {
+		c.String(http.StatusOK, "ok")
+	})
+
+	// 6. start service
+	srv := &http.Server{
+		Addr:    fmt.Sprintf(":%d", viper.GetInt("app.port")),
+		Handler: r,
+	}
+
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("listen: %s\n", err)
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	zap.L().Info("Shutdown Server ...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		zap.L().Fatal("Server Shutdown: ", zap.Error(err))
+	}
+
+	zap.L().Info("Server exiting")
 }
