@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/gin-gonic/gin"
-	"github.com/spf13/viper"
 	"go.uber.org/zap"
 	"log"
 	"net/http"
@@ -27,21 +26,21 @@ func main() {
 	}
 
 	// 2. init log
-	if err := logger.InitLogger(); err != nil {
+	if err := logger.InitLogger(settings.Config.LogConfig); err != nil {
 		zap.L().Fatal("init logger failed, err: ", zap.Error(err))
 		return
 	}
 	defer zap.L().Sync()
 
 	// 3. init mysql
-	if err := mysql.InitMySQL(); err != nil {
+	if err := mysql.InitMySQL(settings.Config.MySQLConfig); err != nil {
 		zap.L().Fatal("init mysql failed, err: ", zap.Error(err))
 		return
 	}
 	defer mysql.Close()
 
 	// 4. init redis
-	if err := redis.InitRedis(); err != nil {
+	if err := redis.InitRedis(settings.Config.RedisConfig); err != nil {
 		zap.L().Fatal("init redis failed, err: ", zap.Error(err))
 		return
 	}
@@ -50,12 +49,12 @@ func main() {
 	// 5. register router
 	r := routers.SetupRouter()
 	r.GET("/", func(c *gin.Context) {
-		c.String(http.StatusOK, "ok")
+		c.String(http.StatusOK, settings.Config.Version)
 	})
 
 	// 6. start service
 	srv := &http.Server{
-		Addr:    fmt.Sprintf(":%d", viper.GetInt("app.port")),
+		Addr:    fmt.Sprintf(":%d", settings.Config.Port),
 		Handler: r,
 	}
 

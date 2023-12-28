@@ -4,28 +4,27 @@ import (
 	"fmt"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
-	"github.com/spf13/viper"
 	"go.uber.org/zap"
+	"web_app/settings"
 )
 
 var db *sqlx.DB
 
-func InitMySQL() (err error) {
+func InitMySQL(conf *settings.MySQLConfig) (err error) {
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True",
-		viper.GetString("mysql.user"),
-		viper.GetString("mysql.password"),
-		viper.GetString("mysql.host"),
-		viper.GetInt("mysql.port"),
-		viper.GetString("mysql.dbname"),
+		conf.User,
+		conf.Password,
+		conf.Host,
+		conf.Port,
+		conf.Dbname,
 	)
 
 	db, err = sqlx.Connect("mysql", dsn)
 	if err != nil {
-		fmt.Printf("connect db failed, err = %v\n", err)
 		return err
 	}
-	db.SetMaxIdleConns(viper.GetInt("mysql.max_idle_conns"))
-	db.SetMaxOpenConns(viper.GetInt("mysql.max_open_conns"))
+	db.SetMaxIdleConns(conf.MaxIdleConns)
+	db.SetMaxOpenConns(conf.MaxOpenConns)
 
 	return err
 }
