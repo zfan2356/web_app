@@ -15,7 +15,7 @@ import (
 	"web_app/settings"
 )
 
-func InitLogger(conf *settings.LogConfig) (err error) {
+func InitLogger(conf *settings.LogConfig, mode string) (err error) {
 	writeSyncer := getLogWriter(
 		conf.FileName,
 		conf.MaxSize,
@@ -28,7 +28,18 @@ func InitLogger(conf *settings.LogConfig) (err error) {
 	if err = l.UnmarshalText([]byte(conf.Level)); err != nil {
 		return err
 	}
-	core := zapcore.NewCore(encoder, writeSyncer, l)
+
+	var core zapcore.Core
+	if mode == "dev" {
+		// 进入开发模式, 将日志输出到终端
+		consoleEncoder := zapcore.NewConsoleEncoder(zap.NewDevelopmentEncoderConfig())
+		core = zapcore.NewTee(
+			zapcore.NewCore(encoder, writeSyncer, l),
+			zapcore.NewCore(consoleEncoder, zapcore.Lock(os.Stdout), l),
+		)
+	} else {
+		core = zapcore.NewCore(encoder, writeSyncer, l)
+	}
 
 	// replace logger
 	lg := zap.New(core, zap.AddCaller())
